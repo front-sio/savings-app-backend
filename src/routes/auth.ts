@@ -1,42 +1,139 @@
-import { Router } from "express";
+// src/routes/auth.ts
+import express from "express";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+import { eq, or } from "drizzle-orm";
+
 import { db } from "../db/client";
 import { users } from "../db/schema";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import { eq } from "drizzle-orm";
 
-const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || "changeme";
+const router = express.Router();
 
+/**
+ * Helper: Normalize phone
+ * Converts:
+ *  - 0XXXXXXXXX => countryCode + XXXXXXXX
+ *  - +XXXXXXXXX => remove +
+ */
+function normalizePhone(phone: string, countryCode = "255") {
+  phone = phone.trim();
+  if (phone.startsWith("+")) phone = phone.substring(1);
+  if (phone.startsWith("0")) phone = countryCode + phone.substring(1);
+  return phone;
+}
+
+// -----------------------------
+// Register endpoint
+// -----------------------------
 router.post("/register", async (req, res) => {
-  const { email, password, name, phone, acceptedTos } = req.body;
-  if (!acceptedTos) return res.status(400).json({ error: "Must accept Terms" });
+  const {
+    name,
+    username,
+    phone,
+    email,
+    password,
+    gender,
+    street,
+    ward,
+    city,
+    country,
+  } = req.body;
 
-  const hash = await bcrypt.hash(password, 12);
+  if (!name || !password || !gender || (!phone && !email && !username)) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
   try {
-    const [user] = await db
-      .insert(users)
-      .values({ email, passwordHash: hash, name, phone, acceptedTos })
-      .returning({ id: users.id, email: users.email });
+    const normalizedPhone = phone ? normalizePhone(phone) : null;
 
-    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "1h" });
+    // Check existing user
+    const existing = await db.select().from(users).where(
+      or(
+        email ? eq(users.email, email) : undefined,
+        username ? eq(users.username, username) : undefined,
+        normalizedPhone ? eq(users.phone, normalizedPhone) : undefined
+      )
+    );
+
+    if (existing.length > 0) {
+      return res.status(400).json({ error: "User already exists with provided info" });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Insert user
+    const inserted = await db.insert(users)
+      .values({
+        name,
+        username: username || null,
+        phone: normalizedPhone,
+        email: email || null,
+        password: hashedPassword,
+        gender,
+        street: street || null,
+        ward: ward || null,
+        city: city || null,
+        country: country || null,
+      })
+      .returning();
+
+    const user = inserted[0];
+
+    // JWT token
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET!, { expiresIn: "7d" });
+
     res.json({ token, user });
-  } catch (err) {
-    res.status(500).json({ error: "Registration failed" });
+  } catch (err: any) {
+    console.error("Register error:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
+// -----------------------------
+// Login endpoint
+// -----------------------------
 router.post("/login", async (req, res) => {
-  const { email, password } = req.body;
-  const [user] = await db.select().from(users).where(eq(users.email, email));
+  const { identifier, password } = req.body;
 
-  if (!user) return res.status(401).json({ error: "Invalid credentials" });
+  if (!identifier || !password) {
+    return res.status(400).json({ error: "Missing identifier or password" });
+  }
 
-  const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) return res.status(401).json({ error: "Invalid credentials" });
+  try {
+    let queryIdentifier = identifier;
+    if (/^\+?\d+$/.test(identifier)) {
+      queryIdentifier = normalizePhone(identifier);
+    }
 
-  const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "1h" });
-  res.json({ token, user: { id: user.id, email: user.email } });
+    const [user] = await db.select().from(users).where(
+      or(
+        eq(users.phone, queryIdentifier),
+        eq(users.email, queryIdentifier),
+        eq(users.username, queryIdentifier)
+      )
+    );
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (!user.password) {
+      return res.status(500).json({ error: "Password not set for user" });
+    }
+
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET!, { expiresIn: "7d" });
+
+    res.json({ token, user });
+  } catch (err: any) {
+    console.error("Login error:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 export default router;
