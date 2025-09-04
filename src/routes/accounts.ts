@@ -3,16 +3,15 @@ import { db } from "../db/client";
 import { accounts } from "../db/schema";
 import { eq } from "drizzle-orm";
 import jwt from "jsonwebtoken";
-import { io } from "../app"; // import Socket.IO instance
+import { io } from "../app";
+import { hashPin } from "../services/authService";
 
 const router = express.Router();
 
-// Extend Express.Request to include userId
 interface AuthRequest extends Request {
   userId?: string;
 }
 
-// Middleware: Auth
 async function auth(req: AuthRequest, res: Response, next: NextFunction) {
   const header = req.headers.authorization;
   if (!header) return res.status(401).json({ error: "Unauthorized" });
@@ -29,28 +28,30 @@ async function auth(req: AuthRequest, res: Response, next: NextFunction) {
 
 // Create account
 router.post("/", auth, async (req: AuthRequest, res: Response) => {
-  const { phone, pin } = req.body;
+  const { phone, targetAmount, planType, planNote } = req.body;
+  if (!phone) return res.status(400).json({ error: "Phone number required" });
+
   try {
     const inserted = await db.insert(accounts).values({
       userId: req.userId!,
       phone,
-      pin,
       balance: 0,
+      targetAmount: targetAmount || 0,
+      planType: planType || "goal",
+      planNote: planNote || "",
       isMain: false,
     }).returning();
 
     const newAccount = inserted[0];
-
-    // Emit real-time update to all connected clients
     io.emit("accounts_update", { userId: req.userId, accounts: await getUserAccounts(req.userId!) });
 
-    res.json(newAccount);
+    res.status(201).json(newAccount);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Get user accounts
+// Get accounts
 router.get("/", auth, async (req: AuthRequest, res: Response) => {
   try {
     const userAccounts = await getUserAccounts(req.userId!);
@@ -60,12 +61,8 @@ router.get("/", auth, async (req: AuthRequest, res: Response) => {
   }
 });
 
-// Helper function: fetch user accounts
 async function getUserAccounts(userId: string) {
-  return await db
-    .select()
-    .from(accounts)
-    .where(eq(accounts.userId, userId));
+  return await db.select().from(accounts).where(eq(accounts.userId, userId));
 }
 
 export default router;

@@ -17,14 +17,14 @@ export const GenderEnum = pgEnum("gender_enum", ["male", "female"]);
  * Users table
  */
 export const users = pgTable("users", {
- id: uuid('id').default(sql`uuid_generate_v4()`).primaryKey(),
+  id: uuid('id').default(sql`uuid_generate_v4()`).primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   phone: varchar("phone", { length: 20 }).unique(),
   email: varchar("email", { length: 255 }).unique(),
   username: varchar("username", { length: 50 }).unique(),
   password: text("password").notNull(),
+  pin: text("pin"), // hashed PIN
   gender: GenderEnum("gender").notNull(),
-  targetAmount: integer("target_amount").default(0),
   street: text("street"),
   ward: text("ward"),
   city: text("city"),
@@ -33,19 +33,29 @@ export const users = pgTable("users", {
 });
 
 
+export const pin_attempts = pgTable("pin_attempts", {
+  userId: uuid("user_id").primaryKey(),
+  count: integer("count").default(0),
+  lastAttempt: timestamp("last_attempt").defaultNow(),
+});
+
 
 /**
  * Accounts table
  */
+// src/db/schema.ts
 export const accounts = pgTable("accounts", {
- id: uuid('id').default(sql`uuid_generate_v4()`).primaryKey(),
+  id: uuid('id').default(sql`uuid_generate_v4()`).primaryKey(),
   userId: uuid("user_id").notNull().references(() => users.id),
   phone: varchar("phone", { length: 20 }).unique(),
-  pin: text("pin"),
   balance: integer("balance").default(0),
+  targetAmount: integer("target_amount").default(0),  // new field: target for this account
+  planType: varchar("plan_type", { length: 50 }),     // 'project' or 'goal'
+  planNote: text("plan_note"),                        // additional notes
   isMain: boolean("is_main").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
 
 /**
  * Transactions table
@@ -71,3 +81,8 @@ export const withdrawalRequests = pgTable("withdrawal_requests", {
   status: text("status").default("pending"), // pending | approved | rejected
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+
+
+
+
