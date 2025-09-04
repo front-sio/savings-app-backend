@@ -19,9 +19,9 @@ export const GenderEnum = pgEnum("gender_enum", ["male", "female"]);
 export const users = pgTable("users", {
  id: uuid('id').default(sql`uuid_generate_v4()`).primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
-  phone: varchar("phone", { length: 20 }).unique(), // Allow null
-  email: varchar("email", { length: 255 }).unique(), // Allow null
-  username: varchar("username", { length: 50 }).unique(), // Allow null
+  phone: varchar("phone", { length: 20 }).unique(),
+  email: varchar("email", { length: 255 }).unique(),
+  username: varchar("username", { length: 50 }).unique(),
   password: text("password").notNull(),
   gender: GenderEnum("gender").notNull(),
   street: text("street"),
@@ -30,6 +30,8 @@ export const users = pgTable("users", {
   country: text("country"),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+
 
 /**
  * Accounts table
