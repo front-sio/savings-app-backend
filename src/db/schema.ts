@@ -24,6 +24,7 @@ export const users = pgTable("users", {
   username: varchar("username", { length: 50 }).unique(),
   password: text("password").notNull(),
   gender: GenderEnum("gender").notNull(),
+  targetAmount: integer("target_amount").default(0),
   street: text("street"),
   ward: text("ward"),
   city: text("city"),
