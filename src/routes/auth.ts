@@ -111,20 +111,32 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// -------------------- GET PROFILE --------------------
 
+// -------------------- GET PROFILE --------------------
 router.get("/profile", authenticate, async (req: AuthRequest, res) => {
   try {
-    const [user] = await db.select().from(users).where(eq(users.id, req.userId!));
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, req.userId!));
+
     if (!user) return res.status(404).json({ error: "User not found" });
 
     const { password: _, pin, ...safeUser } = user;
-    res.json({ user: safeUser });
+
+    // Add hasPin flag
+    res.json({ 
+      user: { 
+        ...safeUser, 
+        hasPin: !!pin  // true if pin exists, false if null
+      } 
+    });
   } catch (err: any) {
     console.error("Get profile error:", err);
     res.status(500).json({ error: err.message });
   }
 });
+
 
 // -------------------- UPDATE PROFILE --------------------
 router.put("/update-profile", authenticate, async (req: AuthRequest, res) => {
@@ -155,41 +167,10 @@ router.put("/update-profile", authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// -------------------- CHANGE PIN --------------------
-router.post("/change-pin", authenticate, async (req: AuthRequest, res) => {
-  const { oldPin, newPin } = req.body;
-  if (!oldPin || !newPin)
-    return res.status(400).json({ error: "Both old and new PIN required" });
 
-  try {
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, req.userId!));
-    if (!user) return res.status(404).json({ error: "User not found" });
-    if (!user.pin) return res.status(400).json({ error: "No PIN set" });
-
-    const valid = await bcrypt.compare(oldPin, user.pin);
-    if (!valid) return res.status(401).json({ error: "Invalid old PIN" });
-
-    const hashedPin = await bcrypt.hash(newPin, 10);
-
-    const updated = await db
-      .update(users)
-      .set({ pin: hashedPin })
-      .where(eq(users.id, req.userId!))
-      .returning();
-
-    res.json({ message: "PIN changed successfully", user: updated[0] });
-  } catch (err: any) {
-    console.error("Change PIN error:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// -------------------- CHANGE PIN --------------------
-router.post("/change-pin", authenticate, async (req: AuthRequest, res) => {
-  const { oldPin, newPin } = req.body;
+// -------------------- ADD PIN --------------------
+router.post("/add-pin", authenticate, async (req: AuthRequest, res) => {
+  const { newPin } = req.body;
 
   if (!newPin) {
     return res.status(400).json({ error: "New PIN is required" });
@@ -203,17 +184,10 @@ router.post("/change-pin", authenticate, async (req: AuthRequest, res) => {
 
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    // If user already has PIN, old PIN is required
     if (user.pin) {
-      if (!oldPin) {
-        return res.status(400).json({ error: "Old PIN is required" });
-      }
-
-      const valid = await bcrypt.compare(oldPin, user.pin);
-      if (!valid) return res.status(401).json({ error: "Invalid old PIN" });
+      return res.status(400).json({ error: "PIN already set. Use change-pin." });
     }
 
-    // Hash new PIN
     const hashedPin = await bcrypt.hash(newPin, 10);
 
     const updated = await db
@@ -223,7 +197,47 @@ router.post("/change-pin", authenticate, async (req: AuthRequest, res) => {
       .returning();
 
     res.json({
-      message: user.pin ? "PIN changed successfully" : "PIN added successfully",
+      message: "PIN added successfully",
+      user: updated[0],
+    });
+  } catch (err: any) {
+    console.error("Add PIN error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// -------------------- CHANGE PIN --------------------
+router.post("/change-pin", authenticate, async (req: AuthRequest, res) => {
+  const { oldPin, newPin } = req.body;
+
+  if (!oldPin || !newPin) {
+    return res.status(400).json({ error: "Both old and new PIN are required" });
+  }
+
+  try {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, req.userId!));
+
+    if (!user) return res.status(404).json({ error: "User not found" });
+    if (!user.pin) {
+      return res.status(400).json({ error: "No PIN set. Use add-pin." });
+    }
+
+    const valid = await bcrypt.compare(oldPin, user.pin);
+    if (!valid) return res.status(401).json({ error: "Invalid old PIN" });
+
+    const hashedPin = await bcrypt.hash(newPin, 10);
+
+    const updated = await db
+      .update(users)
+      .set({ pin: hashedPin })
+      .where(eq(users.id, req.userId!))
+      .returning();
+
+    res.json({
+      message: "PIN changed successfully",
       user: updated[0],
     });
   } catch (err: any) {
