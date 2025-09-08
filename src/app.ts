@@ -21,6 +21,8 @@ app.use("/auth", authRoutes);
 app.use("/accounts", accountsRoutes);
 app.use("/transactions", transactionsRoutes);
 app.use("/withdrawal-requests", withdrawalRequestsRoutes);
+app.get("/health", (req, res) => res.send("OK"));
+
 
 // --------------------
 // HTTP & Socket.IO Server
