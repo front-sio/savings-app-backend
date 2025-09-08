@@ -29,6 +29,7 @@ export const users = pgTable("users", {
   ward: text("ward"),
   city: text("city"),
   country: text("country"),
+  postal_code: text("postal_code"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

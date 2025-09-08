@@ -38,6 +38,7 @@ router.post("/register", async (req, res) => {
     const conditions = [];
     if (email) conditions.push(eq(users.email, email));
     if (normalizedPhone) conditions.push(eq(users.phone, normalizedPhone));
+    if (username) conditions.push(eq(users.username, username));
 
     const existing =
       conditions.length > 0
@@ -96,7 +97,7 @@ router.post("/login", async (req, res) => {
         )
       );
 
-    if (!user) return res.status(404).json({ error: "User not found" });
+    if (!user) return res.status(404).json({ error: "Invalid credentials" });
 
     const match = await bcrypt.compare(password, user.password);
     if (!match) return res.status(401).json({ error: "Invalid credentials" });
@@ -140,8 +141,8 @@ router.get("/profile", authenticate, async (req: AuthRequest, res) => {
 
 // -------------------- UPDATE PROFILE --------------------
 router.put("/update-profile", authenticate, async (req: AuthRequest, res) => {
-  const { name, phone, email } = req.body;
-  if (!name && !phone && !email)
+  const { name, phone, email, street, ward, city, country, postal_code } = req.body;
+  if (!name && !phone && !email && !street && !ward && !city && !country && !postal_code)
     return res.status(400).json({ error: "No fields provided" });
 
   try {
@@ -153,6 +154,11 @@ router.put("/update-profile", authenticate, async (req: AuthRequest, res) => {
         ...(name ? { name } : {}),
         ...(email ? { email } : {}),
         ...(normalizedPhone ? { phone: normalizedPhone } : {}),
+        ...(street ? { street: street } : {}),
+        ...(ward ? { ward: ward } : {}),
+        ...(city ? { city: city } : {}),
+        ...(country ? { country: country } : {}),
+        ...(postal_code ? { postal_code: postal_code } : {}),
       })
       .where(eq(users.id, req.userId!))
       .returning();
