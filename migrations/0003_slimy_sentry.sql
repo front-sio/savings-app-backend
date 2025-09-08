@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "target_amount" integer DEFAULT 0;

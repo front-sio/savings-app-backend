@@ -22,6 +22,34 @@
       "when": 1756992534535,
       "tag": "0002_fancy_rocket_raccoon",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1757006680500,
+      "tag": "0003_slimy_sentry",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1757007258488,
+      "tag": "0004_flat_clea",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1757021508068,
+      "tag": "0005_colorful_zzzax",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1757331778888,
+      "tag": "0006_remarkable_marauders",
+      "breakpoints": true
     }
   ]
 }

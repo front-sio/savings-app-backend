@@ -2,37 +2,15 @@ import express, { Request, Response, NextFunction } from "express";
 import { db } from "../db/client";
 import { accounts, transactions } from "../db/schema";
 import { eq, and, desc } from "drizzle-orm";
-import jwt from "jsonwebtoken";
 import { io } from "../app"; // import Socket.IO instance
+import { authenticate, AuthRequest } from "../middleware/auth";
 
 const router = express.Router();
-
-// Extend Express.Request to include userId
-interface AuthRequest extends Request {
-  userId?: string;
-}
-
-// --------------------
-// Auth Middleware
-// --------------------
-async function auth(req: AuthRequest, res: Response, next: NextFunction) {
-  const header = req.headers.authorization;
-  if (!header) return res.status(401).json({ error: "Unauthorized" });
-
-  try {
-    const token = header.replace("Bearer ", "");
-    const payload: any = jwt.verify(token, process.env.JWT_SECRET!);
-    req.userId = payload.id;
-    next();
-  } catch {
-    res.status(401).json({ error: "Invalid token" });
-  }
-}
 
 // --------------------
 // Deposit
 // --------------------
-router.post("/:accountId/deposit", auth, async (req: AuthRequest, res: Response) => {
+router.post("/:accountId/deposit", authenticate, async (req: AuthRequest, res: Response) => {
   const { amount, note } = req.body;
   const { accountId } = req.params;
 
@@ -69,7 +47,7 @@ router.post("/:accountId/deposit", auth, async (req: AuthRequest, res: Response)
 // --------------------
 // Withdraw
 // --------------------
-router.post("/:accountId/withdraw", auth, async (req: AuthRequest, res: Response) => {
+router.post("/:accountId/withdraw", authenticate, async (req: AuthRequest, res: Response) => {
   const { amount, note } = req.body;
   const { accountId } = req.params;
 
@@ -107,7 +85,7 @@ router.post("/:accountId/withdraw", auth, async (req: AuthRequest, res: Response
 // --------------------
 // Transaction history
 // --------------------
-router.get("/:accountId/history", auth, async (req: AuthRequest, res: Response) => {
+router.get("/:accountId/history", authenticate, async (req: AuthRequest, res: Response) => {
   const { accountId } = req.params;
 
   try {
